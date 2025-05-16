@@ -6,24 +6,26 @@ let json = JSON.parse(body);
 const baseLatInt = 6;
 const baseLonInt = 3;
 
-// 动态获取小数位数
+// 获取小数位数
 function getDecimalPlaces(num) {
   const str = num.toString();
   const parts = str.split(".");
   return parts.length > 1 ? parts[1].length : 0;
 }
 
-// 生成指定小数位数的随机值（0.xxxxxx）
-function randomFraction(digits) {
-  return parseFloat(Math.random().toFixed(digits));
+// 生成固定小数位数的随机数（避免 parseFloat 剪掉）
+function randomFractionFixed(digits) {
+  const factor = Math.pow(10, digits);
+  const rand = Math.floor(Math.random() * factor); // 0 ~ 999999...
+  return rand / factor;
 }
 
 function generateRandomLatLonWithPrecision(refLat, refLon) {
   const latPrecision = getDecimalPlaces(refLat);
   const lonPrecision = getDecimalPlaces(refLon);
 
-  const lat = baseLatInt + randomFraction(latPrecision);
-  const lon = baseLonInt + randomFraction(lonPrecision);
+  const lat = baseLatInt + randomFractionFixed(latPrecision);
+  const lon = baseLonInt + randomFractionFixed(lonPrecision);
 
   return { lat, lon };
 }
