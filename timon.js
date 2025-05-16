@@ -13,39 +13,47 @@ function getDecimalPlaces(num) {
   return parts.length > 1 ? parts[1].length : 0;
 }
 
-// 生成与原始精度完全一致的随机数
-function randomFractionWithExactPrecision(digits) {
-  const factor = Math.pow(10, digits);
-  const rand = Math.floor(Math.random() * factor);
-  
-  // 将随机数转为字符串并补零以保持完全相同的位数
-  let randStr = rand.toString();
-  while (randStr.length < digits) {
-    randStr = "0" + randStr;
+// 生成具有指定小数位数的随机小数部分
+function generateRandomFraction(digits) {
+  if (digits === 0) return 0;
+  let randomDigitsStr = "";
+  for (let i = 0; i < digits; i++) {
+    randomDigitsStr += Math.floor(Math.random() * 10);
   }
-  
-  return parseFloat("0." + randStr);
+  // parseFloat will convert "0.12300" to 0.123
+  // This is numerically correct. The number of visible decimal places
+  // in the final JSON depends on JSON.stringify's behavior.
+  return parseFloat("0." + randomDigitsStr);
 }
 
 function generateRandomLatLonWithPrecision(refLat, refLon) {
   const latPrecision = getDecimalPlaces(refLat);
   const lonPrecision = getDecimalPlaces(refLon);
 
-  // 格式化为与原始数据相同的精度
-  const lat = (baseLatInt + randomFractionWithExactPrecision(latPrecision)).toFixed(latPrecision);
-  const lon = (baseLonInt + randomFractionWithExactPrecision(lonPrecision)).toFixed(lonPrecision);
+  // Generate random fractions using the determined precision
+  const latFraction = generateRandomFraction(latPrecision);
+  const lonFraction = generateRandomFraction(lonPrecision);
 
-  // 转换回数字类型，但保留精确的小数位数
-  return { 
-    lat: parseFloat(lat), 
-    lon: parseFloat(lon) 
-  };
+  const lat = baseLatInt + latFraction;
+  const lon = baseLonInt + lonFraction;
+
+  // The following lines are for demonstration/debugging if you want to force string formatting
+  // However, the geo_point values are expected to be numbers.
+  // const latStr = (baseLatInt + latFraction).toFixed(latPrecision);
+  // const lonStr = (baseLonInt + lonFraction).toFixed(lonPrecision);
+  // return { lat: parseFloat(latStr), lon: parseFloat(lonStr) };
+
+  return { lat, lon };
 }
 
 if (json.transits && Array.isArray(json.transits)) {
   for (const t of json.transits) {
     if (t.geo_point) {
       const { lat: refLat, lon: refLon } = t.geo_point;
+
+      // Check the precision being detected (for debugging)
+      // console.log(`Original Lat: ${refLat}, Precision: ${getDecimalPlaces(refLat)}`);
+      // console.log(`Original Lon: ${refLon}, Precision: ${getDecimalPlaces(refLon)}`);
 
       const { lat, lon } = generateRandomLatLonWithPrecision(refLat, refLon);
       t.geo_point.lat = lat;
