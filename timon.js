@@ -13,21 +13,33 @@ function getDecimalPlaces(num) {
   return parts.length > 1 ? parts[1].length : 0;
 }
 
-// 生成固定小数位数的随机数（避免 parseFloat 剪掉）
-function randomFractionFixed(digits) {
+// 生成与原始精度完全一致的随机数
+function randomFractionWithExactPrecision(digits) {
   const factor = Math.pow(10, digits);
-  const rand = Math.floor(Math.random() * factor); // 0 ~ 999999...
-  return rand / factor;
+  const rand = Math.floor(Math.random() * factor);
+  
+  // 将随机数转为字符串并补零以保持完全相同的位数
+  let randStr = rand.toString();
+  while (randStr.length < digits) {
+    randStr = "0" + randStr;
+  }
+  
+  return parseFloat("0." + randStr);
 }
 
 function generateRandomLatLonWithPrecision(refLat, refLon) {
   const latPrecision = getDecimalPlaces(refLat);
   const lonPrecision = getDecimalPlaces(refLon);
 
-  const lat = baseLatInt + randomFractionFixed(latPrecision);
-  const lon = baseLonInt + randomFractionFixed(lonPrecision);
+  // 格式化为与原始数据相同的精度
+  const lat = (baseLatInt + randomFractionWithExactPrecision(latPrecision)).toFixed(latPrecision);
+  const lon = (baseLonInt + randomFractionWithExactPrecision(lonPrecision)).toFixed(lonPrecision);
 
-  return { lat, lon };
+  // 转换回数字类型，但保留精确的小数位数
+  return { 
+    lat: parseFloat(lat), 
+    lon: parseFloat(lon) 
+  };
 }
 
 if (json.transits && Array.isArray(json.transits)) {
