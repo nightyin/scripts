@@ -1,19 +1,19 @@
 let body = $request.body;
-console.log("📥 原始请求体:\n" + body);  // 打印原始 JSON 字符串
+console.log("📥 原始请求体:\n" + body);
 
 let json = JSON.parse(body);
 
-const baseLat = 6.5244;
-const baseLon = 3.3792;
+// 固定尼日利亚拉各斯附近坐标整数部分
+const baseLatInt = 6;
+const baseLonInt = 3;
 
-function randomOffset(meters) {
-  const offset = meters / 111320;
-  return (Math.random() - 0.5) * 2 * offset;
+function randomFraction(digits = 6) {
+  return parseFloat(Math.random().toFixed(digits));
 }
 
 function randomLatLon() {
-  const lat = baseLat + randomOffset(500);
-  const lon = baseLon + randomOffset(500 / Math.cos(baseLat * Math.PI / 180));
+  const lat = baseLatInt + randomFraction(6);
+  const lon = baseLonInt + randomFraction(6);
   return { lat, lon };
 }
 
@@ -27,6 +27,6 @@ if (json.transits && Array.isArray(json.transits)) {
   }
 }
 
-console.log("🛠️ 修改后请求体:\n" + JSON.stringify(json, null, 2));  // 美化输出
+console.log("🛠️ 修改后请求体:\n" + JSON.stringify(json, null, 2));
 
 $done({ body: JSON.stringify(json) });
