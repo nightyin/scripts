@@ -1,4 +1,6 @@
 let body = $request.body;
+console.log("📥 原始请求体:\n" + body);  // 打印原始 JSON 字符串
+
 let json = JSON.parse(body);
 
 const baseLat = 6.5244;
@@ -24,5 +26,7 @@ if (json.transits && Array.isArray(json.transits)) {
     }
   }
 }
+
+console.log("🛠️ 修改后请求体:\n" + JSON.stringify(json, null, 2));  // 美化输出
 
 $done({ body: JSON.stringify(json) });
