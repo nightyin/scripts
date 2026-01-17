@@ -1,5 +1,4 @@
-const STORE_KEY = "NS_Nodeseek_MinHeaders_v1";
-const FIELDS = ["cookie", "refract-sign", "refract-key", "user-agent", "referer", "origin"];
+const STORE_KEY = "NS_Nodeseek_MinHeaders_v2";
 
 function notify(t, s, b) {
   $notification.post(t, s || "", b || "");
@@ -16,74 +15,90 @@ function lowerIndex(headers) {
   return idx;
 }
 
-function pack(min) {
+function safeVal(v) {
+  if (!v) return "";
+  if (Array.isArray(v)) return v.join("; ");
+  return String(v);
+}
+
+function pack(o) {
   return (
-    (min.cookie || "") + "\n" +
-    (min["refract-sign"] || "") + "\n" +
-    (min["refract-key"] || "") + "\n" +
-    (min["user-agent"] || "") + "\n" +
-    (min.referer || "") + "\n" +
-    (min.origin || "")
+    safeVal(o.cookie) + "\n" +
+    safeVal(o.sign) + "\n" +
+    safeVal(o.key) + "\n" +
+    safeVal(o.ver) + "\n" +
+    safeVal(o.ua) + "\n" +
+    safeVal(o.referer) + "\n" +
+    safeVal(o.origin)
   );
 }
 
 function unpack(raw) {
-  const arr = raw.split("\n");
+  const a = raw.split("\n");
   return {
-    cookie: arr[0] || "",
-    "refract-sign": arr[1] || "",
-    "refract-key": arr[2] || "",
-    "user-agent": arr[3] || "",
-    referer: arr[4] || "",
-    origin: arr[5] || "",
+    cookie: a[0] || "",
+    sign: a[1] || "",
+    key: a[2] || "",
+    ver: a[3] || "",
+    ua: a[4] || "",
+    referer: a[5] || "",
+    origin: a[6] || "",
   };
 }
 
 if (typeof $request !== "undefined") {
   const h = $request.headers || {};
   const idx = lowerIndex(h);
-  const min = Object.create(null);
 
-  for (let i = 0; i < FIELDS.length; i++) {
-    const key = FIELDS[i];
-    const val = idx[key];
-    if (val) min[key] = val;
-  }
+  const cookie = safeVal(idx["cookie"]);
+  const sign = safeVal(idx["refract-sign"]);
+  const key = safeVal(idx["refract-key"]);
+  const ver = safeVal(idx["refract-version"]);
+  const ua = safeVal(idx["user-agent"]);
+  const referer = safeVal(idx["referer"]);
+  const origin = safeVal(idx["origin"]);
 
-  if (!min.cookie || !min["refract-key"] || !min["refract-sign"]) {
-    notify("NS Headers 获取失败", "", "缺少 Cookie 或 refract-key/sign，请重新进入一次个人信息页触发抓包。");
+  if (!cookie || !sign || !key) {
+    notify(
+      "NS 抓鉴权失败",
+      "缺少关键字段",
+      `cookie=${cookie ? "OK" : "MISS"} | sign=${sign ? "OK" : "MISS"} | key=${key ? "OK" : "MISS"}`
+    );
     done({});
   } else {
-    const packed = pack(min);
-    const ok = $persistentStore.write(packed, STORE_KEY);
-    if (ok) notify("NS Headers 获取成功", "", "已保存最小必要字段（省内存版）。");
-    else notify("NS Headers 保存失败", "", "写入持久化失败。");
+    const raw = pack({ cookie, sign, key, ver, ua, referer, origin });
+    const ok = $persistentStore.write(raw, STORE_KEY);
+    if (ok) notify("NS Headers 获取成功", "", "已保存 Cookie + refract-sign + refract-key (+ refract-version)");
+    else notify("NS Headers 保存失败", "", "写入持久化失败");
     done({});
   }
 } else {
   const raw = $persistentStore.read(STORE_KEY);
 
   if (!raw) {
-    notify("NS签到失败", "", "本地没有保存 Headers：请先打开个人信息页面抓包一次。");
+    notify("NS签到失败", "", "本地没有鉴权信息：请先进入个人信息页触发抓包");
     done();
   } else {
-    const saved = unpack(raw);
+    const s = unpack(raw);
 
-    if (!saved.cookie || !saved["refract-key"] || !saved["refract-sign"]) {
-      notify("NS签到失败", "", "本地 Headers 数据不完整，请重新抓包。");
+    if (!s.cookie || !s.sign || !s.key) {
+      notify("NS签到失败", "", "鉴权信息不完整：请重新抓包");
       done();
     } else {
       const url = "https://www.nodeseek.com/api/attendance?random=true";
 
       const headers = {
-        Cookie: saved.cookie,
-        "refract-sign": saved["refract-sign"],
-        "refract-key": saved["refract-key"],
-        "User-Agent": saved["user-agent"] || "Mozilla/5.0",
+        Cookie: s.cookie,
+        "refract-sign": s.sign,
+        "refract-key": s.key,
+        "refract-version": s.ver || "0.3.33",
+        "User-Agent": s.ua || "Mozilla/5.0",
+        Accept: "*/*",
+        "Content-Type": "text/plain;charset=UTF-8",
       };
 
-      if (saved.referer) headers.Referer = saved.referer;
-      if (saved.origin) headers.Origin = saved.origin;
+      if (s.referer) headers.Referer = s.referer;
+      if (s.origin) headers.Origin = s.origin;
 
       $httpClient.post({ url, headers, body: "" }, (err, resp, body) => {
         if (err) {
@@ -103,7 +118,7 @@ if (typeof $request !== "undefined") {
         }
 
         if (status === 403) {
-          notify("NS签到结果", "403 风控", msg || body || "触发风控，稍后再试");
+          notify("NS签到结果", "403 风控/鉴权失败", msg || body || "可能 Cookie 不完整，请重新抓包");
         } else if (status === 500) {
           notify("NS签到结果", "500 服务器错误", msg || body || "服务器错误(500)");
         } else if (status >= 200 && status < 300) {
