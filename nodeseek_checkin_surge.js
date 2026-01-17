@@ -9,13 +9,6 @@ function safeVal(v) {
   return String(v);
 }
 
-function maskCookie(s) {
-  if (!s) return "";
-  const x = String(s);
-  if (x.length <= 12) return "***";
-  return x.slice(0, 6) + "..." + x.slice(-6);
-}
-
 function getHeader(h, name) {
   if (!h) return "";
   if (h[name]) return safeVal(h[name]);
@@ -41,79 +34,83 @@ function unpack(raw) {
   return { cookie: a[0] || "", sign: a[1] || "", key: a[2] || "", ver: a[3] || "", ua: a[4] || "" };
 }
 
-function log(s) {
-  try { console.log(s); } catch (_) {}
-}
-
 if (typeof $request !== "undefined") {
   const url = $request.url || "";
-
   if (url.indexOf("https://www.nodeseek.com/api/account/getInfo/") !== 0 || url.indexOf("readme=1") === -1) {
     done({});
   } else {
     const h = $request.headers || {};
-
     const cookie = getHeader(h, "cookie");
     const sign = getHeader(h, "refract-sign");
     const key = getHeader(h, "refract-key");
     const ver = getHeader(h, "refract-version");
     const ua = getHeader(h, "user-agent");
 
-    log("[NS][CAPTURE] url=" + url);
-    log("[NS][CAPTURE] cookie=" + (cookie ? maskCookie(cookie) : "MISS"));
-    log("[NS][CAPTURE] refract-sign=" + (sign ? sign : "MISS"));
-    log("[NS][CAPTURE] refract-key=" + (key ? key.slice(0, 10) + "..." : "MISS"));
-    log("[NS][CAPTURE] refract-version=" + (ver ? ver : "MISS"));
-
     if (!cookie || !sign || !key) {
       notify("NS 抓鉴权失败", "缺少关键字段", `cookie=${cookie ? "OK" : "MISS"} | sign=${sign ? "OK" : "MISS"} | key=${key ? "OK" : "MISS"}`);
       done({});
     } else {
-      $persistentStore.write(pack(cookie, sign, key, ver, ua), STORE_KEY);
-      notify("NS Headers 获取成功", "", "已保存鉴权信息");
+      const ok = $persistentStore.write(pack(cookie, sign, key, ver, ua), STORE_KEY);
+      notify("NS Headers 获取成功", "", ok ? "鉴权已保存" : "保存失败");
       done({});
     }
   }
 } else {
-  const raw = $persistentStore.read(STORE_KEY);
+  notify("NS签到", "开始执行", "准备请求 /api/attendance");
 
+  const raw = $persistentStore.read(STORE_KEY);
   if (!raw) {
-    notify("NS签到失败", "", "本地没有鉴权信息：请先进入个人信息页触发抓包");
+    notify("NS签到", "失败", "本地无鉴权信息，请先进入个人信息页触发抓包");
     done();
   } else {
     const s = unpack(raw);
-
-    const url = "https://www.nodeseek.com/api/attendance?random=true";
-    const headers = {
-      Cookie: s.cookie,
-      "refract-sign": s.sign,
-      "refract-key": s.key,
-      "refract-version": s.ver || "0.3.33",
-      "User-Agent": s.ua || "Mozilla/5.0",
-      Accept: "*/*",
-      "Content-Type": "text/plain;charset=UTF-8",
-      Referer: "https://www.nodeseek.com/",
-      Origin: "https://www.nodeseek.com",
-    };
-
-    $httpClient.post({ url, headers, body: "" }, (err, resp, body) => {
-      if (err) {
-        notify("NS签到结果", "请求错误", String(err));
-        done();
-        return;
-      }
-
-      const status = resp && resp.status ? resp.status : 0;
-
-      let msg = "";
-      if (body && body[0] === "{") {
-        try { const o = JSON.parse(body); if (o && o.message) msg = String(o.message); } catch (_) {}
-      }
-
-      if (status >= 200 && status < 300) notify("NS签到结果", "签到成功", msg || "OK");
-      else notify("NS签到结果", `异常状态 ${status}`, msg || body || "UNKNOWN");
-
+    if (!s.cookie || !s.sign || !s.key) {
+      notify("NS签到", "失败", "鉴权字段不完整，请重新抓包");
       done();
-    });
+    } else {
+      const url = "https://www.nodeseek.com/api/attendance?random=true";
+      const headers = {
+        Cookie: s.cookie,
+        "refract-sign": s.sign,
+        "refract-key": s.key,
+        "refract-version": s.ver || "0.3.33",
+        "User-Agent": s.ua || "Mozilla/5.0",
+        Accept: "*/*",
+        "Content-Type": "text/plain;charset=UTF-8",
+        Referer: "https://www.nodeseek.com/",
+        Origin: "https://www.nodeseek.com",
+      };
+
+      let finished = false;
+      const timer = setTimeout(() => {
+        if (!finished) {
+          finished = true;
+          notify("NS签到", "超时", "10 秒无响应（策略/节点可能阻断）");
+          done();
+        }
+      }, 10000);
+
+      $httpClient.post({ url, headers, body: "" }, (err, resp, body) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+
+        if (err) {
+          notify("NS签到", "请求错误", String(err));
+          done();
+          return;
+        }
+
+        const status = resp && resp.status ? resp.status : 0;
+
+        let msg = "";
+        if (body && body[0] === "{") {
+          try { const o = JSON.parse(body); if (o && o.message) msg = String(o.message); } catch (_) {}
+        }
+
+        notify("NS签到", `HTTP ${status}`, msg || body || "无返回内容");
+        done();
+      });
+    }
   }
 }
