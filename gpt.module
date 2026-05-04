@@ -2,4 +2,4 @@
 hostname = %APPEND% chatgpt.com
 
 [Body Rewrite]
-http-response ^https:\/\/chatgpt\.com\/backend-api\/payments\/checkout\/approve$ (Replace checkout approve result) .* "{\"result\":true}"
+http-response ^https:\/\/chatgpt\.com\/backend-api\/payments\/checkout\/approve$ (Replace checkout approve result) ^.*$ "{\"result\":true}"
