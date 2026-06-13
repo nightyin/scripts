@@ -1,0 +1,10 @@
+#!name=SMGTV JSON Rewrite
+#!desc=Rewrite authorized SMGTV TV JSON fields with Surge JQ.
+#!requirement=CORE_VERSION>=20
+
+[MITM]
+hostname = %APPEND% kankanews.com, *.kankanews.com
+
+[Body Rewrite]
+http-response-jq ^https?://(?:[^/]+\.)?kankanews\.com/content/pc/tv/program/detail(?:[/?#].*)?$ 'if (.result | type) == "object" then .result |= (.is_shield = 0 | .is_review = 1 | .can_review = 1) else . end'
+http-response-jq ^https?://(?:[^/]+\.)?kankanews\.com/content/pc/tv/programs(?:[/?#].*)?$ 'if (.result.programs | type) == "array" then .result.programs |= map(.is_shield = 0 | .is_review = 1 | .can_review = 1) else . end'
